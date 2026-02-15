@@ -1,8 +1,8 @@
 --[[ 
-    ASYLUM ELITE V7.5
+    ASYLUM ELITE V7.5 (FINAL BUILD)
     - TOGGLE KEY: F5
     - LOCK KEY: Right Click (Hold)
-    - FEATURES: FOV & Smoothness Sliders, Auto-Save/Load, Wall Check
+    - UPDATED: Target Name Display added to Header
 ]]
 
 local UIS = game:GetService("UserInputService")
@@ -51,19 +51,10 @@ LoadConfig()
 local LockedTarget = nil
 local IsRightClicking = false
 local GuiVisible = true
-local ESP_Objects = {}
 
 --// Visuals
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Thickness = 1; FOVCircle.Color = Color3.fromRGB(100, 150, 255); FOVCircle.Visible = true
-
-local function CreateESP()
-    return {
-        Box = Drawing.new("Square"),
-        HealthBarBG = Drawing.new("Square"),
-        HealthBar = Drawing.new("Square")
-    }
-end
 
 local function IsVisible(targetPart)
     if not getgenv().Config.WallCheck then return true end
@@ -76,18 +67,22 @@ ScreenGui.Name = "AsylumElite_V7_5"
 ScreenGui.ResetOnSpawn = false
 
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 260, 0, 560)
+Main.Size = UDim2.new(0, 260, 0, 580)
 Main.Position = UDim2.new(0.05, 0, 0.2, 0)
 Main.BackgroundColor3 = Color3.fromRGB(12, 12, 17)
 Main.BorderSizePixel = 0
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
 
 local Header = Instance.new("Frame", Main)
-Header.Size = UDim2.new(1, 0, 0, 45); Header.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+Header.Size = UDim2.new(1, 0, 0, 60); Header.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 Instance.new("UICorner", Header)
 
 local Title = Instance.new("TextLabel", Header)
-Title.Size = UDim2.new(1, 0, 1, 0); Title.Text = "ASYLUM ELITE V7.5"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.GothamBold; Title.BackgroundTransparency = 1
+Title.Size = UDim2.new(1, 0, 0, 35); Title.Text = "ASYLUM ELITE V7.5"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.GothamBold; Title.BackgroundTransparency = 1
+
+--// NEW: TARGET NAME DISPLAY
+local TargetLabel = Instance.new("TextLabel", Header)
+TargetLabel.Size = UDim2.new(1, 0, 0, 20); TargetLabel.Position = UDim2.new(0, 0, 0.55, 0); TargetLabel.Text = "Target: None"; TargetLabel.TextColor3 = Color3.fromRGB(150, 150, 150); TargetLabel.Font = Enum.Font.Gotham; TargetLabel.BackgroundTransparency = 1; TargetLabel.TextSize = 12
 
 --// DRAG LOGIC
 local dragging, dragStart, startPos
@@ -138,18 +133,18 @@ local function createSlider(txt, pos, min, max, configKey)
 end
 
 --// INIT UI
-createBtn("Camera Snap", UDim2.new(0.05, 0, 0.10, 0), "CameraAim")
-createBtn("Silent (Namecall)", UDim2.new(0.05, 0, 0.17, 0), "Method1_Silent")
-createBtn("Silent (Mouse)", UDim2.new(0.05, 0, 0.24, 0), "Method2_Silent")
-createBtn("Wall Check", UDim2.new(0.05, 0, 0.31, 0), "WallCheck")
-createBtn("Team Check", UDim2.new(0.05, 0, 0.38, 0), "TeamCheck")
-createBtn("NPC ESP", UDim2.new(0.05, 0, 0.45, 0), "ESP")
-createSlider("FOV Radius", UDim2.new(0.05, 0, 0.54, 0), 10, 800, "FOVRadius")
-createSlider("Smoothness", UDim2.new(0.05, 0, 0.64, 0), 0.01, 1, "Smoothness")
-createBtn("SAVE SETTINGS", UDim2.new(0.05, 0, 0.78, 0), nil, true)
+createBtn("Camera Snap", UDim2.new(0.05, 0, 0.13, 0), "CameraAim")
+createBtn("Silent (Namecall)", UDim2.new(0.05, 0, 0.20, 0), "Method1_Silent")
+createBtn("Silent (Mouse)", UDim2.new(0.05, 0, 0.27, 0), "Method2_Silent")
+createBtn("Wall Check", UDim2.new(0.05, 0, 0.34, 0), "WallCheck")
+createBtn("Team Check", UDim2.new(0.05, 0, 0.41, 0), "TeamCheck")
+createBtn("NPC ESP", UDim2.new(0.05, 0, 0.48, 0), "ESP")
+createSlider("FOV Radius", UDim2.new(0.05, 0, 0.57, 0), 10, 800, "FOVRadius")
+createSlider("Smoothness", UDim2.new(0.05, 0, 0.67, 0), 0.01, 1, "Smoothness")
+createBtn("SAVE SETTINGS", UDim2.new(0.05, 0, 0.81, 0), nil, true)
 
 local ap = Instance.new("TextButton", Main)
-ap.Size = UDim2.new(0.9, 0, 0, 32); ap.Position = UDim2.new(0.05, 0, 0.86, 0); ap.Text = "Target: Head"; ap.BackgroundColor3 = Color3.fromRGB(40, 40, 60); ap.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", ap)
+ap.Size = UDim2.new(0.9, 0, 0, 32); ap.Position = UDim2.new(0.05, 0, 0.89, 0); ap.Text = "Target: Head"; ap.BackgroundColor3 = Color3.fromRGB(40, 40, 60); ap.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", ap)
 ap.MouseButton1Click:Connect(function()
     getgenv().Config.AimPart = getgenv().Config.AimPart == "Head" and "HumanoidRootPart" or "Head"
     ap.Text = "Target: " .. (getgenv().Config.AimPart == "Head" and "Head" or "Torso")
@@ -176,17 +171,24 @@ RunService.RenderStepped:Connect(function()
     end
 
     LockedTarget = target
+    
+    -- Update Target Label
+    if LockedTarget then
+        TargetLabel.Text = "Target: " .. LockedTarget.Parent.Name
+        TargetLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+    else
+        TargetLabel.Text = "Target: None"
+        TargetLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    end
+
     if LockedTarget and IsRightClicking and getgenv().Config.CameraAim then
         Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, LockedTarget.Position), getgenv().Config.Smoothness)
     end
 end)
 
---// INPUT HANDLING (F5 Toggle)
+--// INPUT HANDLING
 UIS.InputBegan:Connect(function(i, c)
-    if not c and i.KeyCode == Enum.KeyCode.F5 then
-        GuiVisible = not GuiVisible
-        Main.Visible = GuiVisible
-    end
+    if not c and i.KeyCode == Enum.KeyCode.F5 then GuiVisible = not GuiVisible; Main.Visible = GuiVisible end
     if not c and i.UserInputType == Enum.UserInputType.MouseButton2 then IsRightClicking = true end
 end)
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton2 then IsRightClicking = false end end)
