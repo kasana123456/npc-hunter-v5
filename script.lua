@@ -1,7 +1,8 @@
 --[[ 
     ASYLUM ELITE V7.5 (HYBRID BUILD)
-    - NEW: Targeting Toggle (NPCs / Players / All)
-    - UPDATED: Core engine scans both Player list and Workspace NPCs
+    - TOGGLE KEY: F5
+    - LOCK KEY: Right Click (Hold)
+    - TARGET MODES: [NPCs] (Green), [Players] (Blue), [All] (Red)
 ]]
 
 local UIS = game:GetService("UserInputService")
@@ -17,7 +18,6 @@ getgenv().Config = {
     CameraAim = false,
     Method1_Silent = false, 
     Method2_Silent = false, 
-    ESP = true,
     WallCheck = true,
     TeamCheck = false,
     FOVRadius = 150,
@@ -58,7 +58,7 @@ ScreenGui.Name = "AsylumElite_V7_5"
 ScreenGui.ResetOnSpawn = false
 
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 260, 0, 620) -- Taller to fit more buttons
+Main.Size = UDim2.new(0, 260, 0, 600)
 Main.Position = UDim2.new(0.05, 0, 0.2, 0)
 Main.BackgroundColor3 = Color3.fromRGB(12, 12, 17)
 Main.BorderSizePixel = 0
@@ -74,20 +74,25 @@ Title.Size = UDim2.new(1, 0, 0, 35); Title.Text = "ASYLUM ELITE V7.5"; Title.Tex
 local TargetLabel = Instance.new("TextLabel", Header)
 TargetLabel.Size = UDim2.new(1, 0, 0, 20); TargetLabel.Position = UDim2.new(0, 0, 0.55, 0); TargetLabel.Text = "Target: None"; TargetLabel.TextColor3 = Color3.fromRGB(150, 150, 150); TargetLabel.Font = Enum.Font.Gotham; TargetLabel.BackgroundTransparency = 1; TargetLabel.TextSize = 12
 
---// DRAG LOGIC (Standard)
+--// DRAG LOGIC
 local dragging, dragStart, startPos
 Header.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; dragStart = input.Position; startPos = Main.Position end end)
 UIS.InputChanged:Connect(function(input) if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then local delta = input.Position - dragStart; Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end)
 UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
 
---// UI HELPERS
+--// UI BUTTONS
 local function createBtn(txt, pos, configKey, isAction)
     local b = Instance.new("TextButton", Main)
     b.Size = UDim2.new(0.9, 0, 0, 32); b.Position = pos; b.Text = txt
     b.BackgroundColor3 = (not isAction and getgenv().Config[configKey]) and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(25, 25, 35)
     b.TextColor3 = Color3.new(1, 1, 1); b.Font = Enum.Font.GothamSemibold; Instance.new("UICorner", b)
+    
     b.MouseButton1Click:Connect(function()
-        if isAction then SaveConfig(); b.Text = "SAVED!"; task.wait(1); b.Text = txt
+        if isAction then
+            SaveConfig()
+            b.Text = "CONFIG SAVED!"
+            task.wait(1)
+            b.Text = txt
         else
             getgenv().Config[configKey] = not getgenv().Config[configKey]
             b.BackgroundColor3 = getgenv().Config[configKey] and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(25, 25, 35)
@@ -96,23 +101,36 @@ local function createBtn(txt, pos, configKey, isAction)
     return b
 end
 
---// INIT UI
+--// INIT UI COMPONENTS
 createBtn("Camera Snap", UDim2.new(0.05, 0, 0.12, 0), "CameraAim")
 createBtn("Silent (Method 1)", UDim2.new(0.05, 0, 0.18, 0), "Method1_Silent")
 createBtn("Silent (Method 2)", UDim2.new(0.05, 0, 0.24, 0), "Method2_Silent")
 createBtn("Wall Check", UDim2.new(0.05, 0, 0.30, 0), "WallCheck")
 createBtn("Team Check", UDim2.new(0.05, 0, 0.36, 0), "TeamCheck")
 
--- Targeting Mode Button
-local modeBtn = createBtn("Target Mode: " .. getgenv().Config.TargetMode, UDim2.new(0.05, 0, 0.44, 0), nil, true)
+-- Target List Cycling Button
+local modeBtn = Instance.new("TextButton", Main)
+modeBtn.Size = UDim2.new(0.9, 0, 0, 35); modeBtn.Position = UDim2.new(0.05, 0, 0.43, 0)
+modeBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 45); modeBtn.Font = Enum.Font.GothamBold; modeBtn.TextSize = 13
+Instance.new("UICorner", modeBtn)
+
+local function updateModeUI()
+    local mode = getgenv().Config.TargetMode
+    modeBtn.Text = "Targeting: [" .. mode .. "]"
+    if mode == "NPCs" then modeBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
+    elseif mode == "Players" then modeBtn.TextColor3 = Color3.fromRGB(0, 160, 255)
+    else modeBtn.TextColor3 = Color3.fromRGB(255, 100, 100) end
+end
+updateModeUI()
+
 modeBtn.MouseButton1Click:Connect(function()
     if getgenv().Config.TargetMode == "NPCs" then getgenv().Config.TargetMode = "Players"
     elseif getgenv().Config.TargetMode == "Players" then getgenv().Config.TargetMode = "All"
     else getgenv().Config.TargetMode = "NPCs" end
-    modeBtn.Text = "Target Mode: " .. getgenv().Config.TargetMode
+    updateModeUI()
 end)
 
--- Slider Stubs (Reuse your slider code here)
+--// SLIDERS
 local function createSlider(txt, pos, min, max, configKey)
     local sliderFrame = Instance.new("Frame", Main)
     sliderFrame.Size = UDim2.new(0.9, 0, 0, 45); sliderFrame.Position = pos; sliderFrame.BackgroundTransparency = 1
@@ -131,31 +149,27 @@ local function createSlider(txt, pos, min, max, configKey)
     UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then sliding = false end end)
 end
 
-createSlider("FOV Radius", UDim2.new(0.05, 0, 0.52, 0), 10, 800, "FOVRadius")
-createSlider("Smoothness", UDim2.new(0.05, 0, 0.62, 0), 0.01, 1, "Smoothness")
-createBtn("SAVE SETTINGS", UDim2.new(0.05, 0, 0.78, 0), nil, true)
+createSlider("FOV Radius", UDim2.new(0.05, 0, 0.51, 0), 10, 800, "FOVRadius")
+createSlider("Smoothness", UDim2.new(0.05, 0, 0.61, 0), 0.01, 1, "Smoothness")
 
--- AimPart Button
-local ap = createBtn("Target: " .. getgenv().Config.AimPart, UDim2.new(0.05, 0, 0.86, 0), nil, true)
+createBtn("SAVE SETTINGS", UDim2.new(0.05, 0, 0.76, 0), nil, true)
+local ap = createBtn("Target Part: " .. getgenv().Config.AimPart, UDim2.new(0.05, 0, 0.84, 0), nil, true)
 ap.MouseButton1Click:Connect(function()
     getgenv().Config.AimPart = (getgenv().Config.AimPart == "Head" and "HumanoidRootPart" or "Head")
-    ap.Text = "Target: " .. getgenv().Config.AimPart
+    ap.Text = "Target Part: " .. getgenv().Config.AimPart
 end)
 
 --// CORE ENGINE
-local function IsValidTarget(model)
+local function IsValid(model)
     local hum = model:FindFirstChildOfClass("Humanoid")
     if not hum or hum.Health <= 0 then return false end
-    
     local isPlayer = Players:GetPlayerFromCharacter(model)
     local mode = getgenv().Config.TargetMode
     
     if mode == "NPCs" and isPlayer then return false end
     if mode == "Players" and not isPlayer then return false end
     if isPlayer and isPlayer == LP then return false end
-    
     if getgenv().Config.TeamCheck and isPlayer and isPlayer.Team == LP.Team then return false end
-    
     return true
 end
 
@@ -164,10 +178,8 @@ RunService.RenderStepped:Connect(function()
     FOVCircle.Position = UIS:GetMouseLocation()
     
     local target, dist = nil, getgenv().Config.FOVRadius
-    
-    -- Hybrid Scan (Search Workspace for Models with Humanoids)
     for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("Model") and IsValidTarget(v) then
+        if v:IsA("Model") and IsValid(v) then
             local root = v:FindFirstChild(getgenv().Config.AimPart) or v:FindFirstChild("HumanoidRootPart")
             if root then
                 local rPos, rVis = Camera:WorldToViewportPoint(root.Position)
@@ -181,13 +193,14 @@ RunService.RenderStepped:Connect(function()
 
     LockedTarget = target
     TargetLabel.Text = LockedTarget and "Target: " .. LockedTarget.Parent.Name or "Target: None"
-    
+    TargetLabel.TextColor3 = LockedTarget and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(150, 150, 150)
+
     if LockedTarget and IsRightClicking and getgenv().Config.CameraAim then
         Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, LockedTarget.Position), getgenv().Config.Smoothness)
     end
 end)
 
---// INPUTS & HOOKS (Reuse previous Namecall/Index logic)
+--// INPUT & METAMETHODS
 UIS.InputBegan:Connect(function(i, c)
     if not c and i.KeyCode == Enum.KeyCode.F5 then Main.Visible = not Main.Visible end
     if not c and i.UserInputType == Enum.UserInputType.MouseButton2 then IsRightClicking = true end
