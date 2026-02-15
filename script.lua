@@ -1,8 +1,8 @@
 --[[ 
-    ASYLUM ELITE V10.3
-    - FEATURE: Target Priority (Yellow Chams on Locked Target)
+    ASYLUM ELITE V10.4
+    - FIXED: Highlight cleanup (Yellow chams go away when not locked)
+    - ADDED: Target Part Toggle (Head / HumanoidRootPart)
     - FEATURE: Auto-Save & Dual Silent Aim
-    - TOGGLE: F5 | LOCK: Right Click
 ]]
 
 local UIS = game:GetService("UserInputService")
@@ -31,12 +31,9 @@ getgenv().Config = {
     TargetMode = "NPCs", 
 }
 
---// AUTO-SAVE SYSTEM
+--// AUTO-SAVE
 local filename = "AsylumElite_V10.json"
-local function SaveConfig()
-    pcall(function() writefile(filename, HttpService:JSONEncode(getgenv().Config)) end)
-end
-
+local function SaveConfig() pcall(function() writefile(filename, HttpService:JSONEncode(getgenv().Config)) end) end
 local function LoadConfig()
     if isfile(filename) then
         pcall(function()
@@ -47,16 +44,10 @@ local function LoadConfig()
 end
 LoadConfig()
 
-local lastChange = tick()
-local needsSave = false
+local lastChange, needsSave = tick(), false
 task.spawn(function()
-    while task.wait(1) do
-        if needsSave and tick() - lastChange >= 1 then
-            SaveConfig(); needsSave = false
-        end
-    end
+    while task.wait(1) do if needsSave and tick() - lastChange >= 1 then SaveConfig(); needsSave = false end end
 end)
-
 local function TriggerSave() lastChange = tick(); needsSave = true end
 
 --// FOV Visual
@@ -70,7 +61,7 @@ end
 
 --// GUI CORE
 local ScreenGui = Instance.new("ScreenGui", LP.PlayerGui)
-ScreenGui.Name = "AsylumV10_3"; ScreenGui.ResetOnSpawn = false
+ScreenGui.Name = "AsylumV10_4"; ScreenGui.ResetOnSpawn = false
 
 local Main = Instance.new("Frame", ScreenGui)
 Main.Size = UDim2.new(0, 280, 0, 480); Main.Position = UDim2.new(0.05, 0, 0.2, 0); Main.BackgroundColor3 = Color3.fromRGB(15, 15, 20); Main.ClipsDescendants = true
@@ -79,7 +70,7 @@ Instance.new("UICorner", Main)
 local Header = Instance.new("Frame", Main)
 Header.Size = UDim2.new(1, 0, 0, 50); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 local Title = Instance.new("TextLabel", Header)
-Title.Size = UDim2.new(1, 0, 1, 0); Title.Text = "ASYLUM ELITE V10.3"; Title.TextColor3 = Color3.new(1,1,1); Title.Font = "GothamBold"; Title.BackgroundTransparency = 1
+Title.Size = UDim2.new(1, 0, 1, 0); Title.Text = "ASYLUM ELITE V10.4"; Title.TextColor3 = Color3.new(1,1,1); Title.Font = "GothamBold"; Title.BackgroundTransparency = 1
 
 local Scroll = Instance.new("ScrollingFrame", Main)
 Scroll.Size = UDim2.new(1, 0, 1, -55); Scroll.Position = UDim2.new(0, 0, 0, 55); Scroll.BackgroundTransparency = 1; Scroll.ScrollBarThickness = 3; Scroll.AutomaticCanvasSize = "Y"
@@ -141,6 +132,16 @@ createSlider("Smoothness", 0.01, 1, "Smoothness", true)
 createSlider("FOV Radius", 10, 800, "FOVRadius")
 createSlider("Hitbox Size", 2, 100, "HitboxSize")
 
+-- Target Part Toggle
+local partBtn = Instance.new("TextButton", Scroll)
+partBtn.Size = UDim2.new(0.9, 0, 0, 32); partBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40); partBtn.TextColor3 = Color3.new(1,1,1); partBtn.Font = "GothamSemibold"; Instance.new("UICorner", partBtn)
+local function updatePart() partBtn.Text = "Target Part: " .. getgenv().Config.AimPart; TriggerSave() end
+partBtn.MouseButton1Click:Connect(function()
+    getgenv().Config.AimPart = (getgenv().Config.AimPart == "Head" and "HumanoidRootPart" or "Head")
+    updatePart()
+end)
+updatePart()
+
 --// ENGINE
 local LockedTarget = nil
 local ESP_Cache = {}
@@ -180,17 +181,20 @@ RunService.RenderStepped:Connect(function()
                     root.Transparency = getgenv().Config.VisualTransparency; root.CanCollide = false
                 else root.Size = Vector3.new(2,2,1); root.Transparency = 1 end
 
-                -- Visuals (Default Chams)
-                cache.HL.Enabled = getgenv().Config.GlowEnabled
-                cache.HL.FillColor = Color3.new(1, 1, 1) -- Default White
-                
+                -- Visuals Logic
                 local sPos, onScr = Camera:WorldToViewportPoint(root.Position)
+                local isCurrentlyLocked = (potentialTarget == root) -- Will be updated below
+
+                -- Chams Handling
+                cache.HL.Enabled = getgenv().Config.GlowEnabled
+                cache.HL.FillColor = Color3.new(1, 1, 1) -- Reset to White
+
                 if onScr and getgenv().Config.ESPEnabled then
                     local scale = 1000 / sPos.Z
                     cache.Box.Size = Vector2.new(scale, scale); cache.Box.Position = Vector2.new(sPos.X - scale/2, sPos.Y - scale/2); cache.Box.Visible = true
                 else cache.Box.Visible = false end
 
-                -- Target Detection
+                -- Selection Logic
                 if onScr and IsVisible(root) then
                     local mDist = (Vector2.new(sPos.X, sPos.Y) - UIS:GetMouseLocation()).Magnitude
                     if mDist < dist then potentialTarget = root; dist = mDist end
@@ -201,13 +205,14 @@ RunService.RenderStepped:Connect(function()
     
     LockedTarget = potentialTarget
     
-    -- Apply Yellow Chams to Locked Target
-    if LockedTarget then
-        local parent = LockedTarget.Parent
-        if ESP_Cache[parent] then
-            ESP_Cache[parent].HL.Enabled = true -- Forced on if locked
-            ESP_Cache[parent].HL.FillColor = Color3.new(1, 1, 0) -- Bright Yellow
-            ESP_Cache[parent].HL.OutlineColor = Color3.new(1, 1, 0)
+    -- Highlight Cleanup & Priority Set
+    for model, cache in pairs(ESP_Cache) do
+        if model.Parent == nil then ESP_Cache[model] = nil -- Memory cleanup
+        elseif LockedTarget and LockedTarget.Parent == model then
+            cache.HL.Enabled = true
+            cache.HL.FillColor = Color3.new(1, 1, 0) -- Locked = Yellow
+        elseif not getgenv().Config.GlowEnabled then
+            cache.HL.Enabled = false -- Turn off if menu glow is off and not locked
         end
     end
 
