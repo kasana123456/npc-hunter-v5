@@ -1,8 +1,7 @@
 --[[ 
     ASYLUM ELITE V7.5 (FINAL BUILD)
-    - FIXED: Added FOV & Smoothness Sliders
-    - NEW: Wall Check (LOS) & Team Check logic
-    - NEW: Priority Targeting & Name Randomization
+    - NEW: FOV & Smoothness Sliders
+    - NEW: Auto-Save/Load System
 ]]
 
 local UIS = game:GetService("UserInputService")
@@ -11,6 +10,7 @@ local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local Mouse = LP:GetMouse()
+local HttpService = game:GetService("HttpService")
 
 --// Global Settings
 getgenv().Config = {
@@ -24,6 +24,26 @@ getgenv().Config = {
     Smoothness = 0.15,
     AimPart = "Head",
 }
+
+--// CONFIG SYSTEM (Save/Load)
+local filename = "AsylumElite_Config.json"
+
+local function SaveConfig()
+    local json = HttpService:JSONEncode(getgenv().Config)
+    writefile(filename, json)
+end
+
+local function LoadConfig()
+    if isfile(filename) then
+        local content = readfile(filename)
+        local data = HttpService:JSONDecode(content)
+        for i, v in pairs(data) do
+            getgenv().Config[i] = v
+        end
+    end
+end
+
+LoadConfig() -- Run at startup
 
 local LockedTarget = nil
 local IsRightClicking = false
@@ -41,7 +61,6 @@ local function CreateESP()
     }
 end
 
---// WALL CHECK
 local function IsVisible(targetPart)
     if not getgenv().Config.WallCheck then return true end
     return #Camera:GetPartsObscuringTarget({targetPart.Position}, {LP.Character, Camera}) == 0
@@ -49,11 +68,11 @@ end
 
 --// GUI CONSTRUCTION
 local ScreenGui = Instance.new("ScreenGui", LP.PlayerGui)
-ScreenGui.Name = "Asylum_"..math.random(100,999)
+ScreenGui.Name = "AsylumElite_V7_5"
 ScreenGui.ResetOnSpawn = false
 
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 260, 0, 560)
+Main.Size = UDim2.new(0, 260, 0, 560) -- Slightly taller for Save button
 Main.Position = UDim2.new(0.05, 0, 0.2, 0)
 Main.BackgroundColor3 = Color3.fromRGB(12, 12, 17)
 Main.BorderSizePixel = 0
@@ -72,15 +91,23 @@ Header.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInp
 UIS.InputChanged:Connect(function(input) if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then local delta = input.Position - dragStart; Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end)
 UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
 
---// UI COMPONENTS
-local function createBtn(txt, pos, configKey)
+--// UI HELPERS
+local function createBtn(txt, pos, configKey, isAction)
     local b = Instance.new("TextButton", Main)
     b.Size = UDim2.new(0.9, 0, 0, 32); b.Position = pos; b.Text = txt
-    b.BackgroundColor3 = getgenv().Config[configKey] and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(25, 25, 35)
+    b.BackgroundColor3 = (not isAction and getgenv().Config[configKey]) and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(25, 25, 35)
     b.TextColor3 = Color3.new(1, 1, 1); b.Font = Enum.Font.GothamSemibold; Instance.new("UICorner", b)
+    
     b.MouseButton1Click:Connect(function()
-        getgenv().Config[configKey] = not getgenv().Config[configKey]
-        b.BackgroundColor3 = getgenv().Config[configKey] and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(25, 25, 35)
+        if isAction then
+            SaveConfig()
+            b.Text = "CONFIG SAVED!"
+            task.wait(1)
+            b.Text = txt
+        else
+            getgenv().Config[configKey] = not getgenv().Config[configKey]
+            b.BackgroundColor3 = getgenv().Config[configKey] and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(25, 25, 35)
+        end
     end)
 end
 
@@ -99,16 +126,20 @@ local function createSlider(txt, pos, min, max, configKey)
 
     local function update(input)
         local per = math.clamp((input.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
-        local val = math.floor(min + (max - min) * per)
-        if configKey == "Smoothness" then val = math.round((min + (max - min) * per) * 100) / 100 end
+        local val = min + (max - min) * per
+        if configKey == "Smoothness" then val = math.round(val * 100) / 100 else val = math.floor(val) end
         getgenv().Config[configKey] = val
         label.Text = txt .. ": " .. val
         fill.Size = UDim2.new(per, 0, 1, 0)
     end
 
-    bar.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then update(input) end end)
+    local sliding = false
+    bar.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then sliding = true; update(input) end end)
+    UIS.InputChanged:Connect(function(input) if sliding and input.UserInputType == Enum.UserInputType.MouseMovement then update(input) end end)
+    UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then sliding = false end end)
 end
 
+--// BUTTONS & SLIDERS
 createBtn("Camera Snap", UDim2.new(0.05, 0, 0.10, 0), "CameraAim")
 createBtn("Silent (Namecall)", UDim2.new(0.05, 0, 0.17, 0), "Method1_Silent")
 createBtn("Silent (Mouse)", UDim2.new(0.05, 0, 0.24, 0), "Method2_Silent")
@@ -116,17 +147,19 @@ createBtn("Wall Check", UDim2.new(0.05, 0, 0.31, 0), "WallCheck")
 createBtn("Team Check", UDim2.new(0.05, 0, 0.38, 0), "TeamCheck")
 createBtn("NPC ESP", UDim2.new(0.05, 0, 0.45, 0), "ESP")
 
-createSlider("FOV Radius", UDim2.new(0.05, 0, 0.55, 0), 10, 800, "FOVRadius")
-createSlider("Smoothness", UDim2.new(0.05, 0, 0.65, 0), 0.01, 1, "Smoothness")
+createSlider("FOV Radius", UDim2.new(0.05, 0, 0.54, 0), 10, 800, "FOVRadius")
+createSlider("Smoothness", UDim2.new(0.05, 0, 0.64, 0), 0.01, 1, "Smoothness")
+
+createBtn("SAVE SETTINGS", UDim2.new(0.05, 0, 0.78, 0), nil, true)
 
 local ap = Instance.new("TextButton", Main)
-ap.Size = UDim2.new(0.9, 0, 0, 32); ap.Position = UDim2.new(0.05, 0, 0.78, 0); ap.Text = "Target: Head"; ap.BackgroundColor3 = Color3.fromRGB(40, 40, 60); ap.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", ap)
+ap.Size = UDim2.new(0.9, 0, 0, 32); ap.Position = UDim2.new(0.05, 0, 0.86, 0); ap.Text = "Target: Head"; ap.BackgroundColor3 = Color3.fromRGB(40, 40, 60); ap.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", ap)
 ap.MouseButton1Click:Connect(function()
     getgenv().Config.AimPart = getgenv().Config.AimPart == "Head" and "HumanoidRootPart" or "Head"
     ap.Text = "Target: " .. (getgenv().Config.AimPart == "Head" and "Head" or "Torso")
 end)
 
---// CORE ENGINE
+--// CORE ENGINE (Same as V7.5)
 RunService.RenderStepped:Connect(function()
     FOVCircle.Radius = getgenv().Config.FOVRadius
     FOVCircle.Position = UIS:GetMouseLocation()
@@ -156,7 +189,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
---// HOOKS
+--// METAMETHODS
 local oldN; oldN = hookmetamethod(game, "__namecall", function(self, ...)
     local m = getnamecallmethod()
     if not checkcaller() and getgenv().Config.Method1_Silent and LockedTarget and (m == "Raycast" or m:find("PartOnRay")) then
