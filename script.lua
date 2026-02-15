@@ -1,7 +1,8 @@
 --[[ 
-    ASYLUM ELITE V7.5 (FINAL BUILD)
-    - NEW: FOV & Smoothness Sliders
-    - NEW: Auto-Save/Load System
+    ASYLUM ELITE V7.5
+    - TOGGLE KEY: F5
+    - LOCK KEY: Right Click (Hold)
+    - FEATURES: FOV & Smoothness Sliders, Auto-Save/Load, Wall Check
 ]]
 
 local UIS = game:GetService("UserInputService")
@@ -25,7 +26,7 @@ getgenv().Config = {
     AimPart = "Head",
 }
 
---// CONFIG SYSTEM (Save/Load)
+--// CONFIG SYSTEM
 local filename = "AsylumElite_Config.json"
 
 local function SaveConfig()
@@ -35,18 +36,21 @@ end
 
 local function LoadConfig()
     if isfile(filename) then
-        local content = readfile(filename)
-        local data = HttpService:JSONDecode(content)
-        for i, v in pairs(data) do
-            getgenv().Config[i] = v
-        end
+        pcall(function()
+            local content = readfile(filename)
+            local data = HttpService:JSONDecode(content)
+            for i, v in pairs(data) do
+                getgenv().Config[i] = v
+            end
+        end)
     end
 end
 
-LoadConfig() -- Run at startup
+LoadConfig()
 
 local LockedTarget = nil
 local IsRightClicking = false
+local GuiVisible = true
 local ESP_Objects = {}
 
 --// Visuals
@@ -72,7 +76,7 @@ ScreenGui.Name = "AsylumElite_V7_5"
 ScreenGui.ResetOnSpawn = false
 
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 260, 0, 560) -- Slightly taller for Save button
+Main.Size = UDim2.new(0, 260, 0, 560)
 Main.Position = UDim2.new(0.05, 0, 0.2, 0)
 Main.BackgroundColor3 = Color3.fromRGB(12, 12, 17)
 Main.BorderSizePixel = 0
@@ -91,7 +95,7 @@ Header.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInp
 UIS.InputChanged:Connect(function(input) if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then local delta = input.Position - dragStart; Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end)
 UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
 
---// UI HELPERS
+--// UI COMPONENTS
 local function createBtn(txt, pos, configKey, isAction)
     local b = Instance.new("TextButton", Main)
     b.Size = UDim2.new(0.9, 0, 0, 32); b.Position = pos; b.Text = txt
@@ -114,15 +118,9 @@ end
 local function createSlider(txt, pos, min, max, configKey)
     local sliderFrame = Instance.new("Frame", Main)
     sliderFrame.Size = UDim2.new(0.9, 0, 0, 45); sliderFrame.Position = pos; sliderFrame.BackgroundTransparency = 1
-    
-    local label = Instance.new("TextLabel", sliderFrame)
-    label.Size = UDim2.new(1, 0, 0, 20); label.Text = txt .. ": " .. getgenv().Config[configKey]; label.TextColor3 = Color3.new(1,1,1); label.BackgroundTransparency = 1; label.Font = Enum.Font.Gotham; label.TextXAlignment = Enum.TextXAlignment.Left
-    
-    local bar = Instance.new("Frame", sliderFrame)
-    bar.Size = UDim2.new(1, 0, 0, 6); bar.Position = UDim2.new(0, 0, 0.6, 0); bar.BackgroundColor3 = Color3.fromRGB(35, 35, 45); Instance.new("UICorner", bar)
-    
-    local fill = Instance.new("Frame", bar)
-    fill.Size = UDim2.new((getgenv().Config[configKey] - min) / (max - min), 0, 1, 0); fill.BackgroundColor3 = Color3.fromRGB(0, 120, 255); Instance.new("UICorner", fill)
+    local label = Instance.new("TextLabel", sliderFrame); label.Size = UDim2.new(1, 0, 0, 20); label.Text = txt .. ": " .. getgenv().Config[configKey]; label.TextColor3 = Color3.new(1,1,1); label.BackgroundTransparency = 1; label.Font = Enum.Font.Gotham; label.TextXAlignment = Enum.TextXAlignment.Left
+    local bar = Instance.new("Frame", sliderFrame); bar.Size = UDim2.new(1, 0, 0, 6); bar.Position = UDim2.new(0, 0, 0.6, 0); bar.BackgroundColor3 = Color3.fromRGB(35, 35, 45); Instance.new("UICorner", bar)
+    local fill = Instance.new("Frame", bar); fill.Size = UDim2.new((getgenv().Config[configKey] - min) / (max - min), 0, 1, 0); fill.BackgroundColor3 = Color3.fromRGB(0, 120, 255); Instance.new("UICorner", fill)
 
     local function update(input)
         local per = math.clamp((input.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
@@ -139,17 +137,15 @@ local function createSlider(txt, pos, min, max, configKey)
     UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then sliding = false end end)
 end
 
---// BUTTONS & SLIDERS
+--// INIT UI
 createBtn("Camera Snap", UDim2.new(0.05, 0, 0.10, 0), "CameraAim")
 createBtn("Silent (Namecall)", UDim2.new(0.05, 0, 0.17, 0), "Method1_Silent")
 createBtn("Silent (Mouse)", UDim2.new(0.05, 0, 0.24, 0), "Method2_Silent")
 createBtn("Wall Check", UDim2.new(0.05, 0, 0.31, 0), "WallCheck")
 createBtn("Team Check", UDim2.new(0.05, 0, 0.38, 0), "TeamCheck")
 createBtn("NPC ESP", UDim2.new(0.05, 0, 0.45, 0), "ESP")
-
 createSlider("FOV Radius", UDim2.new(0.05, 0, 0.54, 0), 10, 800, "FOVRadius")
 createSlider("Smoothness", UDim2.new(0.05, 0, 0.64, 0), 0.01, 1, "Smoothness")
-
 createBtn("SAVE SETTINGS", UDim2.new(0.05, 0, 0.78, 0), nil, true)
 
 local ap = Instance.new("TextButton", Main)
@@ -159,7 +155,7 @@ ap.MouseButton1Click:Connect(function()
     ap.Text = "Target: " .. (getgenv().Config.AimPart == "Head" and "Head" or "Torso")
 end)
 
---// CORE ENGINE (Same as V7.5)
+--// CORE ENGINE
 RunService.RenderStepped:Connect(function()
     FOVCircle.Radius = getgenv().Config.FOVRadius
     FOVCircle.Position = UIS:GetMouseLocation()
@@ -170,10 +166,6 @@ RunService.RenderStepped:Connect(function()
             if Players:GetPlayerFromCharacter(v.Parent) then continue end
             local root = v.Parent:FindFirstChild(getgenv().Config.AimPart) or v.Parent:FindFirstChild("HumanoidRootPart")
             if root and v.Health > 0 then
-                if getgenv().Config.TeamCheck then
-                    local tc = v.Parent:FindFirstChild("TeamColor") or v.Parent:FindFirstChild("Team")
-                    if tc and tc.Value == LP.TeamColor then continue end
-                end
                 local rPos, rVis = Camera:WorldToViewportPoint(root.Position)
                 if rVis and IsVisible(root) then
                     local mDist = (Vector2.new(rPos.X, rPos.Y) - UIS:GetMouseLocation()).Magnitude
@@ -188,6 +180,16 @@ RunService.RenderStepped:Connect(function()
         Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, LockedTarget.Position), getgenv().Config.Smoothness)
     end
 end)
+
+--// INPUT HANDLING (F5 Toggle)
+UIS.InputBegan:Connect(function(i, c)
+    if not c and i.KeyCode == Enum.KeyCode.F5 then
+        GuiVisible = not GuiVisible
+        Main.Visible = GuiVisible
+    end
+    if not c and i.UserInputType == Enum.UserInputType.MouseButton2 then IsRightClicking = true end
+end)
+UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton2 then IsRightClicking = false end end)
 
 --// METAMETHODS
 local oldN; oldN = hookmetamethod(game, "__namecall", function(self, ...)
@@ -207,6 +209,3 @@ local oldI; oldI = hookmetamethod(game, "__index", function(self, idx)
     end
     return oldI(self, idx)
 end)
-
-UIS.InputBegan:Connect(function(i, c) if not c and i.UserInputType == Enum.UserInputType.MouseButton2 then IsRightClicking = true end end)
-UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton2 then IsRightClicking = false end end)
