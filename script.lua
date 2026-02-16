@@ -1,8 +1,8 @@
 --[[ 
-    ASYLUM ELITE V11.5 (Updated with Sliders)
-    - ADDED: Slider Component for FOV, Smoothness, and Hitbox
-    - RESTORED: Sidebar Title & Method 2 Silent Aim
-    - FIXED: FOV Rendering & UI Scaling
+    ASYLUM ELITE V11.5
+    - ADDED: Target Group Selection (Players / NPCs / All)
+    - ADDED: Logic for filtering targets based on selection
+    - FEATURES: Sliders, Toggles, and Part Selection
 ]]
 
 local UIS = game:GetService("UserInputService")
@@ -28,7 +28,7 @@ getgenv().Config = {
     SkeletonEnabled = false,
     GlowEnabled = false,
     AimPart = "Head",
-    TargetMode = "NPCs",
+    TargetMode = "All", -- Default: All, Players, NPCs
     TextScale = 18,
 }
 
@@ -41,7 +41,7 @@ local ScreenGui = Instance.new("ScreenGui", LP.PlayerGui)
 ScreenGui.Name = "AsylumV11_5"; ScreenGui.ResetOnSpawn = false
 
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 600, 0, 480); Main.Position = UDim2.new(0.5, -300, 0.5, -240); Main.BackgroundColor3 = Color3.fromRGB(15, 15, 20); Main.BorderSizePixel = 0
+Main.Size = UDim2.new(0, 600, 0, 520); Main.Position = UDim2.new(0.5, -300, 0.5, -260); Main.BackgroundColor3 = Color3.fromRGB(15, 15, 20); Main.BorderSizePixel = 0
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
 
 local Sidebar = Instance.new("Frame", Main)
@@ -72,7 +72,7 @@ local function CreateSidebarBtn(name)
 end
 CreateSidebarBtn("Aim"); CreateSidebarBtn("Visuals"); CreateSidebarBtn("Misc"); ShowTab("Aim")
 
---// COMPONENTS
+--// UI HELPERS (Toggle & Slider)
 local function AddToggle(parent, txt, key)
     local f = Instance.new("Frame", parent); f.Size = UDim2.new(0.95, 0, 0, 45); f.BackgroundTransparency = 1
     local btn = Instance.new("TextButton", f); btn.Size = UDim2.new(0, 45, 0, 24); btn.Position = UDim2.new(1, -50, 0.5, -12); btn.BackgroundColor3 = getgenv().Config[key] and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(50, 50, 60); btn.Text = ""; Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
@@ -86,55 +86,69 @@ end
 local function AddSlider(parent, txt, key, min, max)
     local f = Instance.new("Frame", parent); f.Size = UDim2.new(0.95, 0, 0, 65); f.BackgroundTransparency = 1
     local label = Instance.new("TextLabel", f); label.Size = UDim2.new(1, 0, 0, 25); label.Text = txt .. ": " .. getgenv().Config[key]; label.TextColor3 = Color3.new(1,1,1); label.Font = "Gotham"; label.TextSize = 14; label.TextXAlignment = "Left"; label.BackgroundTransparency = 1
-    
     local track = Instance.new("Frame", f); track.Size = UDim2.new(1, 0, 0, 6); track.Position = UDim2.new(0, 0, 0, 40); track.BackgroundColor3 = Color3.fromRGB(45, 45, 55); track.BorderSizePixel = 0; Instance.new("UICorner", track)
     local fill = Instance.new("Frame", track); fill.Size = UDim2.new((getgenv().Config[key] - min) / (max - min), 0, 1, 0); fill.BackgroundColor3 = Color3.fromRGB(0, 150, 255); fill.BorderSizePixel = 0; Instance.new("UICorner", fill)
     
     local function UpdateSlider()
-        local mousePos = UIS:GetMouseLocation().X
-        local trackPos = track.AbsolutePosition.X
-        local trackWidth = track.AbsoluteSize.X
-        local percent = math.clamp((mousePos - trackPos) / trackWidth, 0, 1)
-        local val = math.floor(min + (max - min) * percent)
-        if key == "Smoothness" then val = min + (max - min) * percent end -- Smoothness needs decimals
-        
-        getgenv().Config[key] = val
+        local percent = math.clamp((UIS:GetMouseLocation().X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+        local val = min + (max - min) * percent
+        getgenv().Config[key] = (key == "Smoothness" and val or math.floor(val))
         fill.Size = UDim2.new(percent, 0, 1, 0)
-        label.Text = txt .. ": " .. (key == "Smoothness" and string.format("%.2f", val) or tostring(val))
+        label.Text = txt .. ": " .. (key == "Smoothness" and string.format("%.2f", getgenv().Config[key]) or tostring(getgenv().Config[key]))
     end
-
     local sliding = false
     track.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then sliding = true; UpdateSlider() end end)
     UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then sliding = false end end)
     UIS.InputChanged:Connect(function(i) if sliding and i.UserInputType == Enum.UserInputType.MouseMovement then UpdateSlider() end end)
 end
 
--- AIM TAB
+--// AIM TAB
 AddToggle(Tabs.Aim.Frame, "Show FOV Circle", "ShowFOV")
 AddSlider(Tabs.Aim.Frame, "FOV Radius", "FOVRadius", 10, 800)
 AddSlider(Tabs.Aim.Frame, "Aim Smoothness", "Smoothness", 0, 1)
 AddToggle(Tabs.Aim.Frame, "Camera Snap", "CameraAim")
 AddToggle(Tabs.Aim.Frame, "Silent Aim (Method 1)", "Method1_Silent")
 AddToggle(Tabs.Aim.Frame, "Silent Aim (Method 2)", "Method2_Silent")
-AddToggle(Tabs.Aim.Frame, "Wall Check", "WallCheck")
 
--- Target Part Toggle
-local partBtn = Instance.new("TextButton", Tabs.Aim.Frame)
-partBtn.Size = UDim2.new(0.95, 0, 0, 40); partBtn.BackgroundColor3 = Color3.fromRGB(35,35,50); partBtn.TextColor3 = Color3.new(1,1,1); partBtn.Font = "GothamBold"; partBtn.TextSize = 16; Instance.new("UICorner", partBtn)
+-- TARGET PART SELECTOR
+local partBtn = Instance.new("TextButton", Tabs.Aim.Frame); partBtn.Size = UDim2.new(0.95, 0, 0, 40); partBtn.BackgroundColor3 = Color3.fromRGB(35,35,50); partBtn.TextColor3 = Color3.new(1,1,1); partBtn.Font = "GothamBold"; partBtn.TextSize = 14; Instance.new("UICorner", partBtn)
+partBtn.Text = "TARGET PART: " .. getgenv().Config.AimPart:upper()
 partBtn.MouseButton1Click:Connect(function()
     getgenv().Config.AimPart = (getgenv().Config.AimPart == "Head" and "HumanoidRootPart" or "Head")
-    partBtn.Text = "TARGET PART: " .. getgenv().Config.AimPart
+    partBtn.Text = "TARGET PART: " .. getgenv().Config.AimPart:upper()
 end)
-partBtn.Text = "TARGET PART: " .. getgenv().Config.AimPart
 
--- VISUALS & MISC
+-- TARGET GROUP SELECTOR (Player / NPC / All)
+local groupBtn = Instance.new("TextButton", Tabs.Aim.Frame); groupBtn.Size = UDim2.new(0.95, 0, 0, 40); groupBtn.BackgroundColor3 = Color3.fromRGB(35,35,50); groupBtn.TextColor3 = Color3.new(0, 150, 255); groupBtn.Font = "GothamBold"; groupBtn.TextSize = 14; Instance.new("UICorner", groupBtn)
+local modes = {"All", "Players", "NPCs"}
+local currentMode = 1
+groupBtn.Text = "TARGET GROUP: ALL"
+groupBtn.MouseButton1Click:Connect(function()
+    currentMode = (currentMode % #modes) + 1
+    getgenv().Config.TargetMode = modes[currentMode]
+    groupBtn.Text = "TARGET GROUP: " .. getgenv().Config.TargetMode:upper()
+end)
+
+--// VISUALS & MISC
 AddToggle(Tabs.Visuals.Frame, "Box ESP", "ESPEnabled")
 AddToggle(Tabs.Visuals.Frame, "Skeleton ESP", "SkeletonEnabled")
 AddToggle(Tabs.Visuals.Frame, "Chams / Glow", "GlowEnabled")
 AddToggle(Tabs.Misc.Frame, "Hitbox Expander", "HitboxEnabled")
 AddSlider(Tabs.Misc.Frame, "Hitbox Size", "HitboxSize", 2, 50)
 
---// ENGINE & METAMETHODS (Logic remains same as original)
+--// LOGIC ENGINE
+local LockedTarget = nil
+local IsRightClicking = false
+
+local function IsValidTarget(model)
+    if not model:FindFirstChildOfClass("Humanoid") or model == LP.Character then return false end
+    local isPlayer = Players:GetPlayerFromCharacter(model)
+    
+    if getgenv().Config.TargetMode == "Players" then return isPlayer ~= nil end
+    if getgenv().Config.TargetMode == "NPCs" then return isPlayer == nil end
+    return true -- "All" mode
+end
+
 RunService.RenderStepped:Connect(function()
     FOVCircle.Visible = getgenv().Config.ShowFOV
     FOVCircle.Radius = getgenv().Config.FOVRadius
@@ -142,7 +156,7 @@ RunService.RenderStepped:Connect(function()
     
     local potential, dist = nil, getgenv().Config.FOVRadius
     for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("Model") and v:FindFirstChildOfClass("Humanoid") and v ~= LP.Character then
+        if v:IsA("Model") and IsValidTarget(v) then
             local root = v:FindFirstChild(getgenv().Config.AimPart) or v:FindFirstChild("HumanoidRootPart")
             if root then
                 local sPos, onScr = Camera:WorldToViewportPoint(root.Position)
@@ -159,7 +173,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Metamethod Hooks
+-- Metamethod Hooks (Method 1 & 2)
 local oldN; oldN = hookmetamethod(game, "__namecall", function(self, ...)
     local m = getnamecallmethod()
     if not checkcaller() and getgenv().Config.Method1_Silent and LockedTarget and (m == "Raycast" or m:find("PartOnRay")) then
@@ -178,7 +192,7 @@ local oldI; oldI = hookmetamethod(game, "__index", function(self, idx)
     return oldI(self, idx)
 end)
 
--- Dragging & Logic
+-- Dragging & UI Input
 local dragging, dStart, sPos
 Sidebar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; dStart = i.Position; sPos = Main.Position end end)
 UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then local delta = i.Position - dStart; Main.Position = UDim2.new(sPos.X.Scale, sPos.X.Offset + delta.X, sPos.Y.Scale, sPos.Y.Offset + delta.Y) end end)
